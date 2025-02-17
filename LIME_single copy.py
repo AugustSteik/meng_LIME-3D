@@ -25,6 +25,9 @@ from lime import lime_3d_remove
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 GNET_DIR = os.path.dirname(BASE_DIR)
 sys.path.append(os.path.join(BASE_DIR, 'models'))  # Adding required pointnet2 modules to system path
+sys.path.append(os.path.join(GNET_DIR, 'models'))  # GrapNet
+
+from graspnet import GraspNet
 
 # SHAPE_NAMES = [line.rstrip() for line in open(os.path.join(BASE_DIR, 'data/shape_names.txt'))] 
 SHAPE_NAMES = [line.rstrip().lstrip() for line in open(os.path.join(BASE_DIR, 'data/shape_names.txt')).readlines()]
@@ -234,9 +237,15 @@ def main(args):
     log_string(args)
 
     '''MODEL LOADING'''
-    MODEL = importlib.import_module(args.model_name)
-    classifier = MODEL.get_model(args.num_classes, normal_channel=args.normals)
-    checkpoint = torch.load(os.path.join(BASE_DIR, args.checkpoint_path), map_location=torch.device(args.gpu))
+    # MODEL = importlib.import_module(args.model_name)
+    # GraspNet
+    MODEL = GraspNet(input_feature_dim=0, num_view=cfgs.num_view, num_angle=12, num_depth=4,
+                     cylinder_radius=0.05, hmin=-0.02, hmax_list=[0.01,0.02,0.03,0.04], is_training=False)
+    # classifier = MODEL.get_model(args.num_classes, normal_channel=args.normals)
+    classifier = MODEL
+    # checkpoint = torch.load(os.path.join(BASE_DIR, args.checkpoint_path), map_location=torch.device(args.gpu))
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    checkpoint = torch.load(cfgs.checkpoint_path)
     classifier.load_state_dict(checkpoint['model_state_dict'])
     # classifier.load_state_dict(checkpoint)
     # filename = f'{BASE_DIR}/data/modelnet40_normal_resampled/wardrobe/wardrobe_0002.txt'
