@@ -77,7 +77,7 @@ def gen_pc_data(ori_data,segments,explain,label,filename):
     pc = o3d.geometry.PointCloud()
     pc.points = o3d.utility.Vector3dVector(pc_colored[:,0:3])
     pc.colors = o3d.utility.Vector3dVector(pc_colored[:,3:6])
-    o3d.io.write_point_cloud(os.path.join(basic_path, filename), pc)        
+    o3d.io.write_point_cloud(os.path.join(basic_path, filename.rsplit('/')[-1]), pc)        
     # print("Generate point cloud (gen pc data)", filename, "successful!") 
     return
     
@@ -110,14 +110,14 @@ def parse_args():
     parser.add_argument('--batch_size', type=int, default=1, help='batch size in training')
     parser.add_argument('--gpu', type=str, default='cuda', help='specify gpu device')
     parser.add_argument('--num_point', type=int, default=1024, help='Point Number [default: 1024]')
-    parser.add_argument('--log_dir', type=str, default='log/logs', help='Experiment root')
+    parser.add_argument('--log_dir', type=str, default='logs/', help='Experiment root')
     parser.add_argument('--normal', action='store_true', default=False, help='Whether to use normal information [default: False]')
     parser.add_argument('--num_votes', type=int, default=1, help='Aggregate classification scores with voting [default: 3]')
     parser.add_argument('--model_name', type=str, default='pointnet2_cls_ssg')
     parser.add_argument('--normals', type=bool, default=False)
-    parser.add_argument('--checkpoint_path', type=str, default='log/checkpoints/pointnet2_cls_ssg.pth')
+    parser.add_argument('--checkpoint_path', type=str, default='logs/checkpoints/pointnet2_cls_ssg.pth')
     parser.add_argument('--num_classes', type=int, default=40)
-    parser.add_argument('--input_file_path', type=str, default='/home/as_admin/development/LIME-3D/data/ModelNet40_converted/airplane/airplane_0001.ply')
+    parser.add_argument('--input_file_path', type=str, default='/home/as_admin/development/graspnet-baseline/LIME-3D/data/ModelNet40/airplane/train/airplane_0001.ply')
     return parser.parse_args()
 
 def sampling(points, sample_size):
@@ -191,19 +191,21 @@ def test(model, loader):
     print('Predict Result: ',pred_choice, SHAPE_NAMES[pred_choice])
     return points, pred_choice, pred
 
-def show_pc(dir, filename):
+def show_pc(dir):
     """
     Plots coloured PC explanations using matplotlib. 
     RED - more positive contribution to classification
     BLUE - more negative contribution
     DIM POINTS - 0 contribution
     """
-    basic_path = os.path.join(BASE_DIR, dir, filename)
+    filename = dir.rsplit('/')[-1]
+    basic_path = os.path.join(BASE_DIR, 'visu', filename)
+    # basic_path = dir
     pc = o3d.io.read_point_cloud(basic_path)
 
     # Convert to NumPy arrays
     points = np.asarray(pc.points)
-    colors = np.asarray(pc.colors) if dir == 'visu' else None # Colors are normalized between 0 and 1
+    colors = np.asarray(pc.colors)  # Colors are normalized between 0 and 1
 
     # Create Matplotlib 3D plot
     fig = plt.figure()
@@ -241,7 +243,7 @@ def main(args):
     # classifier.load_state_dict(checkpoint)
     # filename = f'{BASE_DIR}/data/modelnet40_normal_resampled/wardrobe/wardrobe_0002.txt'
     filename = args.input_file_path
-    show_pc('data/ModelNet40_converted/airplane', os.path.join(args.input_file_path.rsplit('/')[-1]))
+    # show_pc(args.input_file_path)
     with torch.no_grad():
         points, pred, logits = test(classifier.eval(), filename)
         
@@ -250,13 +252,14 @@ def main(args):
     predict_fn = classifier.eval()  # essentially the pointnet model
     explainer = lime_3d_remove.LimeImageExplainer(random_state=0)
     tmp = time.time()
+    show_pc(args.input_file_path)
     explanation = explainer.explain_instance(points_for_exp, predict_fn, top_labels=5, num_features=20, num_samples=10, random_seed=0)
     print ('Completed in: ',time.time() - tmp,'s')
     #temp, mask = explaination.get_image_and_mask(l, positive_only=False, negative_only=False, num_features=100, hide_rest=True)
     #gen_pc_data(points_for_exp,explaination.segments,explaination.local_exp,l,(str(start_idx)+'_'+SHAPE_NAMES[pred_val[i-start_idx]]+'_gt_is_'+SHAPE_NAMES[l]+'_'+'_lime.ply'))
     
-    gen_pc_data(points_for_exp,explanation.segments,explanation.local_exp,l,args.input_file_path.rsplit('/')[-1])
-    show_pc('visu', os.path.join(args.input_file_path.rsplit('/')[-1]))
+    gen_pc_data(points_for_exp, explanation.segments, explanation.local_exp, l, args.input_file_path)
+    show_pc(args.input_file_path)
     return explanation
     
 if __name__ == '__main__':
